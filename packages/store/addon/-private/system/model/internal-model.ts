@@ -14,7 +14,6 @@ import {
   RECORD_DATA_ERRORS,
   RECORD_DATA_STATE,
   REMOVE_RECORD_ARRAY_MANAGER_LEGACY_COMPAT,
-  REQUEST_SERVICE,
 } from '@ember-data/canary-features';
 import { HAS_MODEL_PACKAGE, HAS_RECORD_DATA_PACKAGE } from '@ember-data/private-build-infra';
 import type {
@@ -307,11 +306,6 @@ export default class InternalModel {
             _internalModel: this,
           };
 
-          if (!REQUEST_SERVICE) {
-            createOptions.isError = this.isError;
-            createOptions.adapterError = this.error;
-          }
-
           if (properties !== undefined) {
             assert(
               `You passed '${properties}' as properties for record creation instead of an object.`,
@@ -444,50 +438,26 @@ export default class InternalModel {
     let promiseLabel = 'DS: Model#save ' + this;
     let resolver = RSVP.defer<void>(promiseLabel);
 
-    if (REQUEST_SERVICE) {
-      // Casting to promise to narrow due to the feature flag paths inside scheduleSave
-      return this.store.scheduleSave(this, resolver, options) as Promise<void>;
-    } else {
-      this.store.scheduleSave(this, resolver, options);
-      return resolver.promise;
-    }
+    // Casting to promise to narrow due to the feature flag paths inside scheduleSave
+    return this.store.scheduleSave(this, resolver, options) as Promise<void>;
   }
 
   reload(options) {
-    if (REQUEST_SERVICE) {
-      if (!options) {
-        options = {};
-      }
-      let internalModel = this;
-
-      return internalModel.store._reloadRecord(internalModel, options).then(
-        function () {
-          //TODO NOW seems like we shouldn't need to do this
-          return internalModel;
-        },
-        function (error) {
-          throw error;
-        },
-        'DS: Model#reload complete, update flags'
-      );
-    } else {
-      let internalModel = this;
-      let promiseLabel = 'DS: Model#reload of ' + this;
-
-      return new Promise(function (resolve) {
-        internalModel.send('reloadRecord', { resolve, options });
-      }, promiseLabel).then(
-        function () {
-          internalModel.didCleanError();
-          return internalModel;
-        },
-        function (error) {
-          internalModel.didError(error);
-          throw error;
-        },
-        'DS: Model#reload complete, update flags'
-      );
+    if (!options) {
+      options = {};
     }
+    let internalModel = this;
+
+    return internalModel.store._reloadRecord(internalModel, options).then(
+      function () {
+        //TODO NOW seems like we shouldn't need to do this
+        return internalModel;
+      },
+      function (error) {
+        throw error;
+      },
+      'DS: Model#reload complete, update flags'
+    );
   }
 
   /*
@@ -853,31 +823,17 @@ export default class InternalModel {
   }
 
   hasChangedAttributes() {
-    if (REQUEST_SERVICE) {
-      if (!this.__recordData) {
-        // no need to calculate changed attributes when calling `findRecord`
-        return false;
-      }
-    } else {
-      if (this.currentState.isLoading) {
-        // no need to calculate changed attributes when calling `findRecord`
-        return false;
-      }
+    if (!this.__recordData) {
+      // no need to calculate changed attributes when calling `findRecord`
+      return false;
     }
     return this._recordData.hasChangedAttributes();
   }
 
   changedAttributes() {
-    if (REQUEST_SERVICE) {
-      if (!this.__recordData) {
-        // no need to calculate changed attributes when calling `findRecord`
-        return {};
-      }
-    } else {
-      if (this.currentState.isLoading) {
-        // no need to calculate changed attributes when calling `findRecord`
-        return {};
-      }
+    if (!this.__recordData) {
+      // no need to calculate changed attributes when calling `findRecord`
+      return {};
     }
     return this._recordData.changedAttributes();
   }
@@ -1208,33 +1164,9 @@ export default class InternalModel {
     this._isUpdatingId = false;
   }
 
-  didError(error) {
-    if (!REQUEST_SERVICE) {
-      this.error = error;
-      this.isError = true;
+  didError() {}
 
-      if (this.hasRecord) {
-        this._record.setProperties({
-          isError: true,
-          adapterError: error,
-        });
-      }
-    }
-  }
-
-  didCleanError() {
-    if (!REQUEST_SERVICE) {
-      this.error = null;
-      this.isError = false;
-
-      if (this.hasRecord) {
-        this._record.setProperties({
-          isError: false,
-          adapterError: null,
-        });
-      }
-    }
-  }
+  didCleanError() {}
 
   /*
     If the adapter did not return a hash in response to a commit,
@@ -1320,12 +1252,7 @@ export default class InternalModel {
     }
   }
 
-  adapterDidError(error) {
-    this.send('becameError');
-    this.didError(error);
-
-    this._recordData.commitWasRejected();
-  }
+  adapterDidError() {}
 
   toString() {
     return `<${this.modelName}:${this.id}>`;
