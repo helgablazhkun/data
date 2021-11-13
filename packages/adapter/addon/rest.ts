@@ -352,8 +352,6 @@ class RESTAdapter extends Adapter.extend(BuildURLMixin) {
   declare host: string | null;
   declare namespace: string | null;
 
-  defaultSerializer = '-rest';
-
   _defaultContentType = 'application/json; charset=utf-8';
 
   @computed()
